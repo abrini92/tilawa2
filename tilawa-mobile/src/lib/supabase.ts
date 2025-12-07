@@ -9,8 +9,8 @@ import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 
 // Supabase configuration
-const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://your-project.supabase.co';
-const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || 'your-anon-key';
+const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://pddqrdlzpnfnjyahmetl.supabase.co';
+const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBkZHFyZGx6cG5mbmp5YWhtZXRsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUxMzQyNDUsImV4cCI6MjA4MDcxMDI0NX0.T4Dtjp9VuQxCakI67UGxjNQo7IFEQfI_RSjeTt-B4YM';
 
 // Custom storage adapter for React Native using SecureStore
 const ExpoSecureStoreAdapter = {
