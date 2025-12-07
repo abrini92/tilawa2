@@ -12,6 +12,7 @@ import { AudioProcessingJobData } from './recordings.processor';
 export class RecordingsService {
   private readonly logger = new Logger(RecordingsService.name);
   private readonly uploadDir = path.join(process.cwd(), 'uploads');
+  private readonly baseUrl = process.env.BASE_URL || 'http://localhost:3000';
 
   constructor(
     private readonly prisma: PrismaService,
@@ -75,14 +76,69 @@ export class RecordingsService {
     });
 
     return {
-      ...recording,
+      ...this.toHttpUrls(recording),
       jobId: job.id,
       message: 'Recording uploaded and queued for processing',
     };
   }
 
   async findOne(id: string) {
-    return this.prisma.recording.findUnique({ where: { id } });
+    const recording = await this.prisma.recording.findUnique({ where: { id } });
+    if (!recording) return null;
+    return this.toHttpUrls(recording);
+  }
+
+  /**
+   * Find all recordings for a user with pagination and filtering.
+   */
+  async findByUser(
+    userId: string,
+    options: {
+      status?: RecordingStatus;
+      limit?: number;
+      offset?: number;
+    } = {},
+  ) {
+    const { status, limit = 20, offset = 0 } = options;
+
+    const where: { userId: string; status?: RecordingStatus } = { userId };
+    if (status) where.status = status;
+
+    const [recordings, total] = await Promise.all([
+      this.prisma.recording.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+        skip: offset,
+      }),
+      this.prisma.recording.count({ where }),
+    ]);
+
+    return {
+      recordings: recordings.map((r) => this.toHttpUrls(r)),
+      total,
+      hasMore: offset + limit < total,
+    };
+  }
+
+  /**
+   * Convert filesystem paths to HTTP URLs for frontend access.
+   */
+  private toHttpUrls<T extends { originalUrl: string; enhancedUrl: string | null }>(
+    recording: T,
+  ): T {
+    return {
+      ...recording,
+      originalUrl: this.pathToUrl(recording.originalUrl),
+      enhancedUrl: recording.enhancedUrl
+        ? this.pathToUrl(recording.enhancedUrl)
+        : null,
+    };
+  }
+
+  private pathToUrl(filePath: string): string {
+    const filename = path.basename(filePath);
+    return `${this.baseUrl}/uploads/${filename}`;
   }
 
   async getAnalysis(id: string) {

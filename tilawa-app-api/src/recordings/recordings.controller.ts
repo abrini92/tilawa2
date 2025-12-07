@@ -1,13 +1,16 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
   NotFoundException,
   Param,
   Post,
+  Query,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
+import { RecordingStatus } from '@prisma/client';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Throttle } from '@nestjs/throttler';
 import { RecordingsService } from './recordings.service';
@@ -36,6 +39,28 @@ export class RecordingsController {
     @UploadedFile() file: Express.Multer.File,
   ) {
     return this.recordingsService.handleUpload(userId, file);
+  }
+
+  /**
+   * List recordings for a user with optional filtering.
+   * GET /recordings?userId=X&status=DONE&limit=20&offset=0
+   */
+  @Get()
+  async listRecordings(
+    @Query('userId') userId: string,
+    @Query('status') status?: RecordingStatus,
+    @Query('limit') limit = '20',
+    @Query('offset') offset = '0',
+  ) {
+    if (!userId) {
+      throw new BadRequestException('userId is required');
+    }
+
+    return this.recordingsService.findByUser(userId, {
+      status,
+      limit: parseInt(limit, 10),
+      offset: parseInt(offset, 10),
+    });
   }
 
   @Get(':id')
