@@ -4,7 +4,7 @@
  * Shows processing progress while polling for status.
  */
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, StyleSheet, Alert, BackHandler } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -14,7 +14,7 @@ import { ProgressBar } from '@/components/ui/ProgressBar';
 import { PulsingIcon } from '@/components/ui/PulsingIcon';
 import { colors } from '@/theme/colors';
 import { spacing, screenPadding } from '@/theme/spacing';
-import { getRecording } from '@/services/recordings';
+import { subscribeToRecording, getRecording } from '@/services/recordings';
 import type { StudioStackParamList, RecordingStatus } from '@/types';
 
 type ProcessingScreenProps = {
@@ -52,60 +52,61 @@ export const ProcessingScreen: React.FC<ProcessingScreenProps> = ({
     return () => backHandler.remove();
   }, []);
 
-  // Polling logic
+  // Realtime subscription (no more polling!)
   useEffect(() => {
-    let interval: NodeJS.Timeout;
     let isMounted = true;
 
-    const poll = async () => {
+    // Initial fetch
+    const fetchInitial = async () => {
       try {
         const recording = await getRecording(recordingId);
-
-        if (!isMounted) return;
-
-        setStatus(recording.status);
-
-        // Estimate progress based on elapsed time
-        const elapsed = (Date.now() - startTime) / 1000;
-        const estimatedTotal = 30; // seconds
-        const estimatedProgress = Math.min((elapsed / estimatedTotal) * 100, 95);
-        setProgress(estimatedProgress);
-
-        if (recording.status === 'DONE') {
-          clearInterval(interval);
-          setProgress(100);
-
-          // Navigate to Result after brief delay
-          setTimeout(() => {
-            if (isMounted) {
-              navigation.replace('Result', { recordingId: recording.id });
-            }
-          }, 500);
-        } else if (recording.status === 'ERROR') {
-          clearInterval(interval);
-          Alert.alert(
-            'Processing Failed',
-            'Something went wrong. Please try again.',
-            [
-              {
-                text: 'OK',
-                onPress: () => navigation.goBack(),
-              },
-            ]
-          );
+        if (isMounted) {
+          setStatus(recording.status);
+          if (recording.status === 'DONE') {
+            setProgress(100);
+            navigation.replace('Result', { recordingId: recording.id });
+          }
         }
       } catch (error) {
-        console.error('Polling error:', error);
+        console.error('Initial fetch error:', error);
       }
     };
 
-    // Poll every 3 seconds
-    interval = setInterval(poll, 3000);
-    poll(); // Initial call
+    fetchInitial();
+
+    // Subscribe to realtime updates
+    const unsubscribe = subscribeToRecording(recordingId, (recording) => {
+      if (!isMounted) return;
+
+      setStatus(recording.status);
+
+      if (recording.status === 'DONE') {
+        setProgress(100);
+        setTimeout(() => {
+          if (isMounted) {
+            navigation.replace('Result', { recordingId: recording.id });
+          }
+        }, 500);
+      } else if (recording.status === 'ERROR') {
+        Alert.alert(
+          'Processing Failed',
+          'Something went wrong. Please try again.',
+          [{ text: 'OK', onPress: () => navigation.goBack() }]
+        );
+      }
+    });
+
+    // Progress animation (visual only)
+    const progressInterval = setInterval(() => {
+      const elapsed = (Date.now() - startTime) / 1000;
+      const estimatedProgress = Math.min((elapsed / 30) * 100, 95);
+      setProgress(estimatedProgress);
+    }, 500);
 
     return () => {
       isMounted = false;
-      clearInterval(interval);
+      unsubscribe();
+      clearInterval(progressInterval);
     };
   }, [recordingId, navigation, startTime]);
 

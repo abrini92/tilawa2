@@ -1,19 +1,26 @@
 /**
  * Tilawa Auth Store
  *
- * Zustand store for authentication state management with JWT.
+ * Zustand store using Supabase authentication.
  */
 
 import { create } from 'zustand';
-import * as SecureStore from 'expo-secure-store';
-import { STORAGE_KEYS } from '@/constants/config';
-import { apiClient } from '@/services/api';
-import type { User, AuthState } from '@/types';
+import { supabase } from '@/lib/supabase';
+import type { User as SupabaseUser, Session } from '@supabase/supabase-js';
 
-interface AuthResponse {
-  user: User;
-  accessToken: string;
-  refreshToken: string;
+// App user type (from our users table)
+interface AppUser {
+  id: string;
+  email: string;
+  name: string | null;
+  avatar_url: string | null;
+}
+
+interface AuthState {
+  user: AppUser | null;
+  session: Session | null;
+  isAuthenticated: boolean;
+  isLoading: boolean;
 }
 
 interface AuthActions {
@@ -21,170 +28,158 @@ interface AuthActions {
   signup: (email: string, password: string, name: string) => Promise<void>;
   logout: () => Promise<void>;
   checkAuth: () => Promise<void>;
-  refreshToken: () => Promise<void>;
-  setLoading: (loading: boolean) => void;
 }
 
-type AuthStore = AuthState & AuthActions & { refreshTokenValue: string | null };
+type AuthStore = AuthState & AuthActions;
 
 export const useAuthStore = create<AuthStore>((set, get) => ({
   // Initial state
   user: null,
-  token: null,
-  refreshTokenValue: null,
+  session: null,
   isAuthenticated: false,
   isLoading: true,
 
-  // Actions
-  setLoading: (loading: boolean) => set({ isLoading: loading }),
-
+  // Login with email/password
   login: async (email: string, password: string) => {
     set({ isLoading: true });
-    try {
-      const response = await apiClient.post<AuthResponse>('/auth/login', {
-        email,
-        password,
-      });
 
-      const { user, accessToken, refreshToken } = response.data;
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
 
-      // Store credentials securely
-      await SecureStore.setItemAsync(STORAGE_KEYS.AUTH_TOKEN, accessToken);
-      await SecureStore.setItemAsync(STORAGE_KEYS.REFRESH_TOKEN, refreshToken);
-      await SecureStore.setItemAsync(STORAGE_KEYS.USER_DATA, JSON.stringify(user));
-
-      // Update axios default header
-      apiClient.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
-
-      set({
-        user,
-        token: accessToken,
-        refreshTokenValue: refreshToken,
-        isAuthenticated: true,
-        isLoading: false,
-      });
-    } catch (error: unknown) {
+    if (error) {
       set({ isLoading: false });
-      throw error;
+      throw new Error(error.message);
     }
+
+    // Fetch user profile from our users table
+    const { data: profile } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', data.user.id)
+      .single();
+
+    set({
+      user: profile,
+      session: data.session,
+      isAuthenticated: true,
+      isLoading: false,
+    });
   },
 
+  // Signup with email/password
   signup: async (email: string, password: string, name: string) => {
     set({ isLoading: true });
-    try {
-      const response = await apiClient.post<AuthResponse>('/auth/signup', {
-        email,
-        password,
-        name,
-      });
 
-      const { user, accessToken, refreshToken } = response.data;
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: { name },
+      },
+    });
 
-      await SecureStore.setItemAsync(STORAGE_KEYS.AUTH_TOKEN, accessToken);
-      await SecureStore.setItemAsync(STORAGE_KEYS.REFRESH_TOKEN, refreshToken);
-      await SecureStore.setItemAsync(STORAGE_KEYS.USER_DATA, JSON.stringify(user));
+    if (error) {
+      set({ isLoading: false });
+      throw new Error(error.message);
+    }
 
-      apiClient.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
+    // Profile is auto-created by trigger, fetch it
+    if (data.user) {
+      const { data: profile } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', data.user.id)
+        .single();
 
       set({
-        user,
-        token: accessToken,
-        refreshTokenValue: refreshToken,
-        isAuthenticated: true,
+        user: profile,
+        session: data.session,
+        isAuthenticated: !!data.session,
         isLoading: false,
       });
-    } catch (error) {
+    } else {
       set({ isLoading: false });
-      throw error;
     }
   },
 
+  // Logout
   logout: async () => {
     set({ isLoading: true });
-    try {
-      await SecureStore.deleteItemAsync(STORAGE_KEYS.AUTH_TOKEN);
-      await SecureStore.deleteItemAsync(STORAGE_KEYS.REFRESH_TOKEN);
-      await SecureStore.deleteItemAsync(STORAGE_KEYS.USER_DATA);
 
-      delete apiClient.defaults.headers.common['Authorization'];
+    const { error } = await supabase.auth.signOut();
 
-      set({
-        user: null,
-        token: null,
-        refreshTokenValue: null,
-        isAuthenticated: false,
-        isLoading: false,
-      });
-    } catch (error) {
+    if (error) {
       set({ isLoading: false });
-      throw error;
+      throw new Error(error.message);
     }
+
+    set({
+      user: null,
+      session: null,
+      isAuthenticated: false,
+      isLoading: false,
+    });
   },
 
-  refreshToken: async () => {
-    const { refreshTokenValue } = get();
-    if (!refreshTokenValue) {
-      throw new Error('No refresh token');
-    }
-
-    try {
-      const response = await apiClient.post<AuthResponse>('/auth/refresh', {
-        refreshToken: refreshTokenValue,
-      });
-
-      const { user, accessToken, refreshToken } = response.data;
-
-      await SecureStore.setItemAsync(STORAGE_KEYS.AUTH_TOKEN, accessToken);
-      await SecureStore.setItemAsync(STORAGE_KEYS.REFRESH_TOKEN, refreshToken);
-
-      apiClient.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
-
-      set({
-        user,
-        token: accessToken,
-        refreshTokenValue: refreshToken,
-      });
-    } catch (error) {
-      // Refresh failed - logout
-      await get().logout();
-      throw error;
-    }
-  },
-
+  // Check existing session
   checkAuth: async () => {
     set({ isLoading: true });
+
     try {
-      const token = await SecureStore.getItemAsync(STORAGE_KEYS.AUTH_TOKEN);
-      const refreshToken = await SecureStore.getItemAsync(STORAGE_KEYS.REFRESH_TOKEN);
-      const userData = await SecureStore.getItemAsync(STORAGE_KEYS.USER_DATA);
+      const { data: { session } } = await supabase.auth.getSession();
 
-      if (token && userData) {
-        const user = JSON.parse(userData) as User;
-
-        // Set auth header
-        apiClient.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      if (session?.user) {
+        // Fetch user profile
+        const { data: profile } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', session.user.id)
+          .single();
 
         set({
-          user,
-          token,
-          refreshTokenValue: refreshToken,
+          user: profile,
+          session,
           isAuthenticated: true,
           isLoading: false,
+        });
+
+        // Listen for auth changes
+        supabase.auth.onAuthStateChange(async (event, newSession) => {
+          if (event === 'SIGNED_OUT') {
+            set({
+              user: null,
+              session: null,
+              isAuthenticated: false,
+            });
+          } else if (newSession?.user) {
+            const { data: newProfile } = await supabase
+              .from('users')
+              .select('*')
+              .eq('id', newSession.user.id)
+              .single();
+
+            set({
+              user: newProfile,
+              session: newSession,
+              isAuthenticated: true,
+            });
+          }
         });
       } else {
         set({
           user: null,
-          token: null,
-          refreshTokenValue: null,
+          session: null,
           isAuthenticated: false,
           isLoading: false,
         });
       }
     } catch (error) {
+      console.error('Auth check error:', error);
       set({
         user: null,
-        token: null,
-        refreshTokenValue: null,
+        session: null,
         isAuthenticated: false,
         isLoading: false,
       });
