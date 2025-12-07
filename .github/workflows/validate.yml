@@ -1,0 +1,154 @@
+name: Tilawa Validation Suite
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: tilawa
+          POSTGRES_PASSWORD: tilawa
+          POSTGRES_DB: tilawadb
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://tilawa:tilawa@localhost:5432/tilawadb
+      CORE_AI_BASE_URL: http://localhost:8000
+      REDIS_HOST: localhost
+      REDIS_PORT: 6379
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: tilawa-core-ai/requirements.txt
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: tilawa-app-api/package-lock.json
+
+      - name: Install Python dependencies
+        working-directory: tilawa-core-ai
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest-cov colorama pydub
+
+      - name: Install Node.js dependencies
+        working-directory: tilawa-app-api
+        run: |
+          npm ci
+          npm install -g ts-node
+
+      - name: Generate Prisma client
+        working-directory: tilawa-app-api
+        run: npx prisma generate
+
+      - name: Run Prisma migrations
+        working-directory: tilawa-app-api
+        run: npx prisma migrate deploy
+
+      - name: Create test user in database
+        working-directory: tilawa-app-api
+        run: |
+          npx prisma db execute --stdin <<EOF
+          INSERT INTO "User" (id, email, name, "createdAt", "updatedAt")
+          VALUES ('test-bullmq-user', 'test@tilawa.app', 'Test User', NOW(), NOW())
+          ON CONFLICT (id) DO NOTHING;
+          EOF
+
+      - name: Start FastAPI server
+        working-directory: tilawa-core-ai
+        run: |
+          uvicorn app.main:app --host 0.0.0.0 --port 8000 &
+          echo "Waiting for FastAPI to start..."
+          for i in {1..30}; do
+            if curl -s http://localhost:8000/health > /dev/null; then
+              echo "FastAPI is ready!"
+              break
+            fi
+            sleep 1
+          done
+
+      - name: Start NestJS server
+        working-directory: tilawa-app-api
+        run: |
+          npm run build
+          node dist/main.js &
+          echo "Waiting for NestJS to start..."
+          for i in {1..30}; do
+            if curl -s http://localhost:3000 > /dev/null 2>&1; then
+              echo "NestJS is ready!"
+              break
+            fi
+            sleep 1
+          done
+
+      - name: Make scripts executable
+        run: |
+          chmod +x scripts/validate_all.sh
+          chmod +x tilawa-core-ai/scripts/run_tests_with_coverage.sh
+          chmod +x tilawa-app-api/scripts/test_rate_limit.sh
+
+      - name: Run validation suite
+        run: ./scripts/validate_all.sh
+        continue-on-error: true
+        id: validate
+
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: benchmark-results
+          path: |
+            tilawa-core-ai/scripts/benchmark_results.json
+            tilawa-core-ai/scripts/metrics_validation.json
+            tilawa-core-ai/scripts/grafana_dashboard.json
+            tilawa-app-api/scripts/bullmq_test_results.json
+          retention-days: 30
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report
+          path: tilawa-core-ai/htmlcov/
+          retention-days: 30
+
+      - name: Check validation result
+        if: steps.validate.outcome == 'failure'
+        run: |
+          echo "Validation suite failed!"
+          exit 1

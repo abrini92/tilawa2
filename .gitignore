@@ -6,6 +6,8 @@
 venv/
 */.venv/
 */venv/
+**/.venv311/
+tilawa-core-ai/.venv311/
 
 # Python caches
 **/__pycache__/
