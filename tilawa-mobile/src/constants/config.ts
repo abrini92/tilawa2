@@ -11,6 +11,7 @@ export const API_CONFIG = {
 // Storage Keys
 export const STORAGE_KEYS = {
   AUTH_TOKEN: 'tilawa_auth_token',
+  REFRESH_TOKEN: 'tilawa_refresh_token',
   USER_DATA: 'tilawa_user_data',
   ONBOARDING_COMPLETE: 'tilawa_onboarding_complete',
 } as const;

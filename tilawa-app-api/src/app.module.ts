@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { BullModule } from '@nestjs/bullmq';
+import { AuthModule } from './auth/auth.module';
+import { JwtAuthGuard } from './auth/jwt-auth.guard';
 import { CalibrationModule } from './calibration/calibration.module';
 import { CoreAiModule } from './core-ai/core-ai.module';
 import { PrismaModule } from './prisma/prisma.module';
@@ -26,6 +28,7 @@ import { bullmqConfig, QUEUE_NAMES } from './config/bullmq.config';
 
     // App modules
     PrismaModule,
+    AuthModule,
     CoreAiModule,
     UsersModule,
     CalibrationModule,
@@ -36,6 +39,11 @@ import { bullmqConfig, QUEUE_NAMES } from './config/bullmq.config';
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
+    },
+    // Apply JWT auth globally (use @Public() to skip)
+    {
+      provide: APP_GUARD,
+      useClass: JwtAuthGuard,
     },
   ],
 })
