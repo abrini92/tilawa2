@@ -4,13 +4,14 @@
  * Main recording hub - the heart of the app.
  */
 
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as Haptics from 'expo-haptics';
 import { Text, Button, Card } from '@/components/ui';
+import { SurahPicker, SurahSelectorButton } from '@/components/ui/SurahPicker';
 import { colors } from '@/theme/colors';
 import { spacing, screenPadding } from '@/theme/spacing';
 import type { StudioStackParamList } from '@/types';
@@ -19,11 +20,13 @@ type StudioNavigationProp = NativeStackNavigationProp<StudioStackParamList, 'Stu
 
 export const StudioScreen: React.FC = () => {
   const navigation = useNavigation<StudioNavigationProp>();
+  const [selectedSurah, setSelectedSurah] = useState<number | null>(null);
+  const [showPicker, setShowPicker] = useState(false);
 
   const handleStartRecording = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-    navigation.navigate('Recording');
-  }, [navigation]);
+    navigation.navigate('Recording', { expectedSurah: selectedSurah });
+  }, [navigation, selectedSurah]);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -37,6 +40,12 @@ export const StudioScreen: React.FC = () => {
             Record your recitation
           </Text>
         </View>
+
+        {/* Surah Selector */}
+        <SurahSelectorButton
+          selectedSurah={selectedSurah}
+          onPress={() => setShowPicker(true)}
+        />
 
         {/* Recording Card */}
         <Card variant="elevated" style={styles.recordingCard}>
@@ -85,6 +94,14 @@ export const StudioScreen: React.FC = () => {
           </Text>
         </Card>
       </View>
+
+      {/* Surah Picker Modal */}
+      <SurahPicker
+        visible={showPicker}
+        selectedSurah={selectedSurah}
+        onSelect={setSelectedSurah}
+        onClose={() => setShowPicker(false)}
+      />
     </SafeAreaView>
   );
 };

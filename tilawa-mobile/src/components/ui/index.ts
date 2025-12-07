@@ -10,3 +10,4 @@ export { LoadingSpinner } from './LoadingSpinner';
 export { Waveform } from './Waveform';
 export { ProgressBar } from './ProgressBar';
 export { PulsingIcon } from './PulsingIcon';
+export { SurahPicker, SurahSelectorButton } from './SurahPicker';

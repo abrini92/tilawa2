@@ -133,7 +133,7 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({
 
   const handleRecordAnother = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    navigation.replace('Recording');
+    navigation.replace('Recording', {});
   }, [navigation]);
 
   const handleGoToLibrary = useCallback(() => {

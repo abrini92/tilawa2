@@ -101,7 +101,7 @@ export type MainTabParamList = {
 
 export type StudioStackParamList = {
   StudioHome: undefined;
-  Recording: undefined;
+  Recording: { expectedSurah?: number | null };
   Processing: { recordingId: string };
   Result: { recordingId: string };
 };

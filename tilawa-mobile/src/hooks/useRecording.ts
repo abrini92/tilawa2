@@ -78,6 +78,26 @@ export const useRecording = (): UseRecordingReturn => {
       const hasPermission = await requestPermissions();
       if (!hasPermission) return;
 
+      // Clean up any existing recording first
+      if (recordingRef.current) {
+        try {
+          await recordingRef.current.stopAndUnloadAsync();
+        } catch {
+          // Ignore errors from cleanup
+        }
+        recordingRef.current = null;
+      }
+
+      // Clean up any existing sound
+      if (soundRef.current) {
+        try {
+          await soundRef.current.unloadAsync();
+        } catch {
+          // Ignore errors from cleanup
+        }
+        soundRef.current = null;
+      }
+
       // Configure audio mode for recording
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: true,
