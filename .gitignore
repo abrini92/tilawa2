@@ -1,0 +1,42 @@
+# macOS
+.DS_Store
+
+# Python virtualenvs
+.venv/
+venv/
+*/.venv/
+*/venv/
+
+# Python caches
+**/__pycache__/
+**/*.py[cod]
+*.pyo
+*.pyd
+*.pyd
+
+# pytest/coverage
+.pytest_cache/
+.tox/
+.coverage*
+htmlcov/
+
+# FastAPI / tilawa-core-ai artifacts
+tilawa-core-ai/.mypy_cache/
+tilawa-core-ai/.pytest_cache/
+
+# Node / tilawa-app-api
+node_modules/
+*/node_modules/
+
+# Build outputs
+**/dist/
+**/build/
+
+# Uploads / runtime data
+tilawa-app-api/uploads/
+
+# IDE/editor
+.vscode/
+.idea/
+*.swp
+*.swo

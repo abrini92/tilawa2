@@ -1,0 +1,60 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id        String               @id @default(cuid())
+  email     String               @unique
+  name      String?
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
+
+  calibrationProfiles CalibrationProfile[]
+  recordings         Recording[]
+}
+
+model CalibrationProfile {
+  id               String   @id @default(cuid())
+  userId           String
+  user             User     @relation(fields: [userId], references: [id])
+
+  voiceProfile      Json
+  noiseProfile      Json
+  recommendedParams Json
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Recording {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+
+  status      RecordingStatus @default(UPLOADED)
+  originalUrl String
+  enhancedUrl String?
+
+  isQuran            Boolean?
+  mainSurah          Int?
+  ayahStart          Int?
+  ayahEnd            Int?
+  recitationAccuracy Float?
+
+  analysis Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum RecordingStatus {
+  UPLOADED
+  PROCESSING
+  DONE
+  ERROR
+}
