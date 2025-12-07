@@ -5,9 +5,9 @@
  */
 
 import React from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, Text as RNText } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { StudioScreen } from '@/screens/main/StudioScreen';
+import { StudioNavigator } from './StudioNavigator';
 import { LibraryScreen } from '@/screens/main/LibraryScreen';
 import { ProfileScreen } from '@/screens/main/ProfileScreen';
 import { colors } from '@/theme/colors';
@@ -61,7 +61,7 @@ export const MainNavigator: React.FC = () => {
     >
       <Tab.Screen
         name="Studio"
-        component={StudioScreen}
+        component={StudioNavigator}
         options={{
           tabBarIcon: ({ focused }) => (
             <TabIcon name="Studio" focused={focused} />

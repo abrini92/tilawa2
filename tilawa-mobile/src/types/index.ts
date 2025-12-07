@@ -102,5 +102,11 @@ export type MainTabParamList = {
 export type StudioStackParamList = {
   StudioHome: undefined;
   Recording: undefined;
+  Processing: { recordingId: string };
   Result: { recordingId: string };
+};
+
+export type LibraryStackParamList = {
+  LibraryHome: undefined;
+  RecordingDetail: { recordingId: string };
 };

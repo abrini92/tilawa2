@@ -7,16 +7,23 @@
 import React, { useCallback } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as Haptics from 'expo-haptics';
 import { Text, Button, Card } from '@/components/ui';
 import { colors } from '@/theme/colors';
 import { spacing, screenPadding } from '@/theme/spacing';
+import type { StudioStackParamList } from '@/types';
+
+type StudioNavigationProp = NativeStackNavigationProp<StudioStackParamList, 'StudioHome'>;
 
 export const StudioScreen: React.FC = () => {
+  const navigation = useNavigation<StudioNavigationProp>();
+
   const handleStartRecording = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-    // TODO: Navigate to recording screen
-  }, []);
+    navigation.navigate('Recording');
+  }, [navigation]);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
